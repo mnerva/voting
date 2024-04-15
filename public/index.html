@@ -1,17 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Submit Form</title>
+    <title>Indetification</title>
 </head>
+
 <body>
-
-    <!-- Button to open the login form -->
-    <button id="loginButton">Login</button>
-
-    <!-- Include your external JavaScript file -->
-    <script src="index.js"></script>
-
+    <div></div>
+    <div>
+        <p>Tuvasta oma isik: </p>
+        <form action="/indentification" method="post">
+            <label for="firstname">Eesnimi:</label>
+            <input type="text" id="firstname" name="firstname"><br>
+            <label for="lastname">Perenimi:</label>
+            <input type="text" id="lastname" name="lastname"><br>
+            <input type="submit" value="Submit">
+        </form>
+    </div>
 </body>
 </html>

@@ -1,67 +1,74 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const mysql = require('mysql2');
-const cors = require('cors'); // Import the cors middleware
-const crypto = require('crypto')
-const path = require('path')
-
 const app = express();
+const mysql = require('mysql2');
 const port = 3000;
+const path = require('path');
 
-// Middleware for parsing JSON data in the request body
-app.use(bodyParser.json());
-app.use(cors()); // Enable CORS for all routes
-
-
-// MySQL connection configuration
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'qwerty',
-    database: 'login'
-  });
-
-// Connect to MySQL
-db.connect((err) => {
-    if (err) {
-      console.error('MySQL connection error:', err);
-    } else {
-      console.log('Connected to MySQL database');
-    }
-  });
-
-// Serve static files from the "public" directory
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve index.html for the root URL
+// Setup database connection
+const pool = mysql.createPool({
+    host: 'localhost',
+    user: 'root',
+    database: 'voting_system',
+    password: 'qwerty'
+});
+
+// Connect to MySQL
+pool.getConnection((err, connection) => {
+    if (err) {
+        console.error('MySQL connection error:', err);
+        return;
+    }
+    console.log('Connected to MySQL database');
+    connection.release()
+});
+
+// html form
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// POST endpoint for submitting text
-app.post('/submit-text', (req, res) => {
-    const { text, password } = req.body;
-  
-    if (!text || !password) {
-      return res.status(400).json({ error: 'Text and password are required' });
-    }
-  
-    // Insert text into the database
-    const query = 'INSERT INTO login (tekst, password) VALUES (?, ?)';
-  
-    const encryptedPassword = crypto.createHash('md5').update(password).digest('hex');
-  
-    db.query(query, [text, encryptedPassword], (err, result) => {
-      if (err) {
-        console.error('Error inserting text into the database:', err);
-        return res.status(500).json({ error: 'Internal Server Error' });
-      } else {
-        res.json({ message: 'Text and password submitted and saved to the database' });
-      }
-    });
-  });
+// Post identification
+app.post('/indentification', (req, res) => {
+    const { firstname, lastname } = req.body;
+    const query = 'SELECT * FROM HAALETUS WHERE LOWER(eesnimi) = LOWER(?) AND LOWER(perenimi) = LOWER(?)';
 
-// Start the server
+    pool.query(query, [firstname, lastname], (err, results) => {
+        if (err || results.length === 0) {
+            // If an error occurs, show this page and stop further processing
+            let errorMessage = 'Isiku tuvastamine ebaõnnestus, palun proovige uuesti';
+            return res.send(`<!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Identification</title>
+            </head>
+            <body>
+                <div>
+                    <p>Tuvasta oma isik:</p>
+                    <form action="/indentification" method="post">
+                        <label for="firstname">Eesnimi:</label>
+                        <input type="text" id="firstname" name="firstname"><br>
+                        <label for="lastname">Perenimi:</label>
+                        <input type="text" id="lastname" name="lastname"><br>
+                        <p class="error-message">${errorMessage}</p>
+                        <input type="submit" value="Submit">
+                    </form>
+                </div>
+            </body>
+            </html>`);
+        }
+
+        // Redirect to voting page if the user is found
+        res.redirect('/vote.html');
+    });
+});
+
+// start the server
 app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
-  });
+    console.log(`Server running at http://localhost:${port}`);
+});
