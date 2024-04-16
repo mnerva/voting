@@ -1,0 +1,28 @@
+ /* Hide the actual radio button */
+ input[type="radio"] {
+    display: none;
+}
+
+label.vote-button {
+    padding: 10px 20px;
+    margin: 5px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: inline-block;
+    transition: background-color 0.3s;
+}
+
+input[type="radio"]:checked + label {
+    background-color: #216837;
+}
+
+label.vote-button:hover {
+    background-color: #369636;
+}
+
+input[type="radio"]:focus + label {
+    outline: 2px solid #FFF;
+    outline-offset: 2px;
+}
