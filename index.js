@@ -24,6 +24,22 @@ const pool = mysql.createPool({
   password: 'qwerty'
 });
 
+//  iga kord kui server starditakse on uus hääletamise session
+let currentSessionId;
+
+function initializeNewSession() {
+  pool.query('INSERT INTO TULEMUSED (haaletanute_arv) VALUES (0)', (error, results, fields) => {
+    if (error) {
+      console.error('Error when inserting new session:', error);
+      return;
+    }
+    currentSessionId = results.insertId;
+    console.log('New session started with session ID:', currentSessionId);
+  });
+}
+
+initializeNewSession();
+
 // Connect to MySQL
 pool.getConnection((err, connection) => {
   if (err) {
@@ -44,8 +60,8 @@ let votingAllowed = true;
 const votingPeriod = 300000;
 
 setTimeout(() => {
-    votingAllowed = false;
-    console.log("Voting has ended.");
+  votingAllowed = false;
+  console.log("Voting has ended.");
 }, votingPeriod);
 
 // Post identification
@@ -56,44 +72,48 @@ app.post('/identification', (req, res) => {
   pool.query(query, [firstname, lastname], (err, results) => {
     if (err || results.length === 0) {
       // If an error occurs, show this page and stop further processing
-      let errorMessage = 'Isiku tuvastamine ebaõnnestus, palun proovige uuesti';
-      return res.send(`<!DOCTYPE html>
-      <html lang="en">
-      
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Indetification</title>
-          <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-      </head>
-      
-      <body>
-          <div>
-              <div><i class="material-icons">account_circle</i><span id="voter_name">Külaline</span></div>
-              <div><i class="material-icons">access_time</i><span id="timer">Timer</span></div>
-          </div>
-          <hr>
-          <div>
-              <p>Tuvasta oma isik: </p>
-              <form action="/identification" method="post">
-                  <label for="firstname">Eesnimi:</label>
-                  <input type="text" id="firstname" name="firstname"><br>
-                  <label for="lastname">Perenimi:</label>
-                  <input type="text" id="lastname" name="lastname"><br>
-                  <p class="error-message">${errorMessage}</p>
-                  <input type="submit" value="Submit">
-              </form>
-          </div>
-      </body>
-      </html>`);
-    }
-    // Set userId in session
-    req.session.userId = results[0].Haaletaja_id;
+      return res.send(renderIdentificationPage('Isiku tuvastamine ebaõnnestus, palun proovige uuesti'));
+    } else {
+      // Set userId in session
+      req.session.userId = results[0].Haaletaja_id;
 
-    // Redirect to voting page if the user is found
-    res.redirect('/vote.html');
+      // Redirect to voting page if the user is found
+      res.redirect('/vote.html');
+    }
   });
 });
+
+function renderIdentificationPage(errorMessage) {
+  return `<!DOCTYPE html>
+  <html lang="en">
+  
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Indetification</title>
+      <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  </head>
+  
+  <body>
+      <div>
+          <div><i class="material-icons">account_circle</i><span id="voter_name">Külaline</span></div>
+          <div><i class="material-icons">access_time</i><span id="timer">Timer</span></div>
+      </div>
+      <hr>
+      <div>
+          <p>Tuvasta oma isik: </p>
+          <form action="/identification" method="post">
+              <label for="firstname">Eesnimi:</label>
+              <input type="text" id="firstname" name="firstname"><br>
+              <label for="lastname">Perenimi:</label>
+              <input type="text" id="lastname" name="lastname"><br>
+              <p class="error-message">${errorMessage}</p>
+              <input type="submit" value="Submit">
+          </form>
+      </div>
+  </body>
+  </html>`
+}
 
 app.post('/vote', (req, res) => {
   // Redirect back to indentification page if there is a problem with session
@@ -102,70 +122,90 @@ app.post('/vote', (req, res) => {
     return;
   }
 
+  // check whether time has already ran up
   if (!votingAllowed) {
     res.redirect('/summary.html');
     return;
-}
+  }
 
   const vote = req.body.vote;
   const userId = req.session.userId;
-  const currentTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ')
-  const query = 'UPDATE HAALETUS SET otsus = ?, haaletuse_aeg = ? WHERE Haaletaja_id = ?';
+  const currentTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
 
-  pool.query(query, [vote, currentTime, userId], (error, results) => {
+  if (typeof currentSessionId === 'undefined') {
+    console.error('Session ID is not initialized');
+    return res.status(500).send('Internal Server Error: Session ID is not available.');
+  }
+
+  const query = 'UPDATE HAALETUS SET otsus = ?, haaletuse_aeg = ?, Session_id = ? WHERE Haaletaja_id = ?';
+
+  pool.query(query, [vote, currentTime, currentSessionId, userId], (error, results) => {
     if (error || results.affectedRows === 0) {
       console.error('Database error or no rows updated:', error);
-      let errorMessage = 'Andmebaasi päring ebaõnnestus, palun proovige uuesti';
-      return res.send(`<<!DOCTYPE html>
-      <html lang="en">
-      
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Hääletus</title>
-          <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-          <link rel="stylesheet" href="style.css">
-          <script src="index.js"></script>
-      </head>
-      
-      <body>
-          <div>
-              <div><i class="material-icons">account_circle</i><span id="voter_name">Külaline</span></div>
-              <div><i class="material-icons">access_time</i><span id="timer">Timer</span></div>
-          </div>
-          <hr>
-          <div>
-              <p>Langeta oma otsus</p>
-              <form id="voteForm">
-                  <input type="radio" id="poolt" name="vote" value="Poolt">
-                  <label for="poolt" class="vote-button">Poolt</label>
-      
-                  <input type="radio" id="vastu" name="vote" value="Vastu">
-                  <label for="vastu" class="vote-button">Vastu</label>
-                  <p class="error-message">${errorMessage}</p>
-                  <button type="button" onclick="sendData()">Saada</button>
-              </form>
-          </div>
-      </body>
-      
-      </html>`);
+      return res.send(renderVotingPage('Andmebaasi päring ebaõnnestus, palun proovige uuesti'));
     } else {
-    // save the vote in the session, redirect to confirmation page
-    req.session.vote = vote;
-    res.redirect('/confirmation.html'); 
-  } 
+      // save the vote and id in the session, redirect to confirmation page
+      req.session.vote = vote;
+      req.session.voteSessionId = currentSessionId;
+      res.redirect('/confirmation.html');
+    }
   });
 });
 
+function renderVotingPage(errorMessage) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hääletus</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="index.js"></script>
+</head>
+<body>
+    <div>
+        <div><i class="material-icons">account_circle</i><span id="voter_name">Külaline</span></div>
+        <div><i class="material-icons">access_time</i><span id="timer">Timer</span></div>
+    </div>
+    <hr>
+    <div>
+        <p>Langeta oma otsus</p>
+        <form id="voteForm">
+            <input type="radio" id="poolt" name="vote" value="Poolt">
+            <label for="poolt" class="vote-button">Poolt</label>
+            <input type="radio" id="vastu" name="vote" value="Vastu">
+            <label for="vastu" class="vote-button">Vastu</label>
+            <p class="error-message">${errorMessage}</p>
+            <button type="button" onclick="sendData()">Saada</button>
+        </form>
+    </div>
+</body>
+</html>`;
+}
+
 // allows to retrieve for the individual vote result
 app.get('/get-vote', (req, res) => {
-  console.log("Current Session Data:", req.session);
-  if (req.session && req.session.vote) {
-    res.json({ vote: req.session.vote });
-  } else {
-    console.log("No vote found in session.");
-    res.status(404).send('No vote recorded');
+  // console.log("Current Session Data:", req.session);
+  const sessionID = req.session.voteSessionId;
+
+  if (!sessionID) {
+    return res.status(404).send('Session ID is missing.');
   }
+
+  const query = 'SELECT otsus FROM HAALETUS WHERE Session_id = ? AND Haaletaja_id = ?';
+  pool.query(query, [sessionID, req.session.userId], (error, results) => {
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).send('Database query failed.');
+    }
+    if (results.length > 0) {
+      res.json({ vote: results[0].otsus });
+    } else {
+      console.log("No vote found in current session.");
+      res.status(404).send('No vote recorded');
+    }
+  });
 });
 
 // retrieves the voter's name
@@ -190,12 +230,12 @@ app.get('/get-username', (req, res) => {
 let votingEndTime = new Date(Date.now() + 300000);
 
 app.get('/timer', (req, res) => {
-    let currentTime = new Date();
-    let timeLeft = votingEndTime - currentTime;
-    if (timeLeft < 0) {
-        timeLeft = 0;
-    }
-    res.json({ timeLeft });
+  let currentTime = new Date();
+  let timeLeft = votingEndTime - currentTime;
+  if (timeLeft < 0) {
+    timeLeft = 0;
+  }
+  res.json({ timeLeft });
 });
 
 // start the server

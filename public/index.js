@@ -25,19 +25,58 @@ function sendData() {
 
 // hääletuse vastus headerisse
 document.addEventListener('DOMContentLoaded', function () {
-    console.log('Fetching vote status...');
     fetch('/get-vote')
         .then(response => {
-            console.log('Response received:', response);
+            if (!response.ok) throw new Error('No valid vote in current session');
             return response.json();
         })
         .then(data => {
-            console.log('Vote data:', data);
-            document.getElementById('voteStatus').innerText = `Otsus langetatud: ${data.vote.toUpperCase()}`;
+            const voteStatusElement = document.getElementById('voteStatus');
+            let iconHTML = '';
+            switch (data.vote) {
+                case 'Poolt':
+                    iconHTML = '<i class="material-icons">check_circle</i>';
+                    break;
+                case 'Vastu':
+                    iconHTML = '<i class="material-icons">do_not_disturb_on</i>';
+                    break;
+                default:
+                    iconHTML = '<i class="material-icons">error</i>';
+                    break;
+            }
+            voteStatusElement.innerHTML = `${iconHTML} Otsus langetatud: ${data.vote.toUpperCase()}`;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('voteStatus').innerHTML = '<i class="material-icons">error</i> Otsus langetamata';
+        });
+});
+
+// icon
+document.addEventListener('DOMContentLoaded', function () {
+    fetch('/get-vote')
+        .then(response => response.json())
+        .then(data => {
+            const voteStatusElement = document.getElementById('voteStatus');
+            let iconHTML = '';
+
+            switch (data.vote) {
+                case 'Poolt':
+                    iconHTML = '<i class="material-icons">check_circle</i>';
+                    break;
+                case 'Vastu':
+                    iconHTML = '<i class="material-icons">do_not_disturb_on</i>';
+                    break;
+                default:
+                    iconHTML = '<i class="material-icons">error</i>';
+                    break;
+            }
+
+            voteStatusElement.innerHTML = `${iconHTML} Otsus langetatud: ${data.vote.toUpperCase()}`;
         })
         .catch(error => {
             console.error('Error fetching vote status:', error);
-            document.getElementById('voteStatus').innerText = 'Otsus langetamata';
+            document.getElementById('voteStatus').innerHTML = '<i class="material-icons">error</i> Otsus langetamata';
         });
 });
 
