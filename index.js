@@ -39,6 +39,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// timer
+let votingAllowed = true;
+const votingPeriod = 300000;
+
+setTimeout(() => {
+    votingAllowed = false;
+    console.log("Voting has ended.");
+}, votingPeriod);
+
 // Post identification
 app.post('/identification', (req, res) => {
   const { firstname, lastname } = req.body;
@@ -60,8 +69,8 @@ app.post('/identification', (req, res) => {
       
       <body>
           <div>
-              <div><i class="material-icons">account_circle</i><p>Külaline<p></div>
-              <div><i class="material-icons">access_time</i><p>Timer<p></div>
+              <div><i class="material-icons">account_circle</i><span id="voter_name">Külaline</span></div>
+              <div><i class="material-icons">access_time</i><span id="timer">Timer</span></div>
           </div>
           <hr>
           <div>
@@ -93,6 +102,11 @@ app.post('/vote', (req, res) => {
     return;
   }
 
+  if (!votingAllowed) {
+    res.redirect('/summary.html');
+    return;
+}
+
   const vote = req.body.vote;
   const userId = req.session.userId;
   const currentTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ')
@@ -100,6 +114,7 @@ app.post('/vote', (req, res) => {
 
   pool.query(query, [vote, currentTime, userId], (error, results) => {
     if (error || results.affectedRows === 0) {
+      console.error('Database error or no rows updated:', error);
       let errorMessage = 'Andmebaasi päring ebaõnnestus, palun proovige uuesti';
       return res.send(`<<!DOCTYPE html>
       <html lang="en">
@@ -134,19 +149,21 @@ app.post('/vote', (req, res) => {
       </body>
       
       </html>`);
-    }
-
-    // save the vote in the session
+    } else {
+    // save the vote in the session, redirect to confirmation page
     req.session.vote = vote;
-    res.redirect('/confirmation.html');
+    res.redirect('/confirmation.html'); 
+  } 
   });
 });
 
 // allows to retrieve for the individual vote result
 app.get('/get-vote', (req, res) => {
+  console.log("Current Session Data:", req.session);
   if (req.session && req.session.vote) {
     res.json({ vote: req.session.vote });
   } else {
+    console.log("No vote found in session.");
     res.status(404).send('No vote recorded');
   }
 });
@@ -167,6 +184,18 @@ app.get('/get-username', (req, res) => {
   } else {
     res.status(404).send('Session userId not found');
   }
+});
+
+// timer
+let votingEndTime = new Date(Date.now() + 300000);
+
+app.get('/timer', (req, res) => {
+    let currentTime = new Date();
+    let timeLeft = votingEndTime - currentTime;
+    if (timeLeft < 0) {
+        timeLeft = 0;
+    }
+    res.json({ timeLeft });
 });
 
 // start the server

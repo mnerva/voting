@@ -23,15 +23,23 @@ function sendData() {
 }
 
 
-// hääletuse vastus confirmation lehele
+// hääletuse vastus headerisse
 document.addEventListener('DOMContentLoaded', function () {
+    console.log('Fetching vote status...');
     fetch('/get-vote')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('confirmationMessage').innerText = `Teie vastus "${data.vote}" on edukalt salvestatud! Soovite seda muuta?`;
+        .then(response => {
+            console.log('Response received:', response);
+            return response.json();
         })
+        .then(data => {
+            console.log('Vote data:', data);
+            document.getElementById('voteStatus').innerText = `Otsus langetatud: ${data.vote.toUpperCase()}`;
+        })
+        .catch(error => {
+            console.error('Error fetching vote status:', error);
+            document.getElementById('voteStatus').innerText = 'Otsus langetamata';
+        });
 });
-
 
 // eesnimi ja perenimi headerisse
 document.addEventListener('DOMContentLoaded', function () {
@@ -40,13 +48,34 @@ document.addEventListener('DOMContentLoaded', function () {
             if (response.ok) {
                 return response.json();
             }
-            throw new Error('Not logged in');
+            throw new Error('Isik tuvastamata');
         })
         .then(data => {
             document.getElementById('voter_name').textContent = data.name;
         })
         .catch(error => {
-            console.error('Failed to fetch username:', error);
-            document.getElementById('voter_name').textContent = 'Guest';
+            document.getElementById('voter_name').textContent = 'Külaline';
         });
+});
+
+// timer display
+function updateTime() {
+    fetch('/timer')
+        .then(response => response.json())
+        .then(data => {
+            if (data.timeLeft <= 0) {
+                document.getElementById('timer').textContent = "Hääletus on lõppenud.";
+                clearInterval(timerInterval);
+            } else {
+                let minutes = Math.floor(data.timeLeft / 60000);
+                let seconds = ((data.timeLeft % 60000) / 1000).toFixed(0);
+                document.getElementById('timer').textContent = minutes + ":" + (seconds < 10 ? '0' : '') + seconds;
+            }
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+let timerInterval;
+document.addEventListener('DOMContentLoaded', function () {
+    timerInterval = setInterval(updateTime, 1000);
 });
