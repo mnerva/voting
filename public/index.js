@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', function () {
-    // hääletuse vastus headerisse
+    // Vote in the header
     fetch('/get-vote')
         .then(response => {
-            if (!response.ok) throw new Error('No valid vote in current session');
+            if (!response.ok) throw new Error('Otsus langetamata');
             return response.json();
         })
         .then(data => {
@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('voteStatus').innerHTML = '<i class="material-icons">error</i> Otsus langetamata';
         });
 
-    // eesnimi ja perenimi headerisse
+    // Firstname and lastname in the header
     fetch('/get-username')
         .then(response => {
             if (response.ok) {
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('voter_name').textContent = 'Külaline';
         });
 
-    // timer display
+    // Time in the header
     const timerInterval = setInterval(function () {
         fetch('/timer')
             .then(response => response.json())
@@ -57,16 +57,16 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(error => console.error('Error:', error));
     }, 1000);
 
-    // results display on the summary.html page
+    // Results in the summary.html
     fetch('/results')
         .then(response => response.json())
         .then(data => {
             document.getElementById('results').textContent = `Poolt: ${data.poolt} Vastu: ${data.vastu}`;
         })
-        .catch(error => console.error('Error fetching results:', error));
+        .catch(error => console.error('Error db:', error));
 });
 
-// Poolt/vastu nuppude funktsionaalsus
+// Poolt/vastu buttons' functionality
 function sendData() {
     var selectedVote = document.querySelector('input[name="vote"]:checked').value;
     fetch('/vote', {

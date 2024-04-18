@@ -8,7 +8,6 @@ const session = require('express-session');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-
 app.use(session({
   secret: 'hasti_turvaline_key',
   resave: false,
@@ -24,29 +23,25 @@ const pool = mysql.createPool({
   password: 'qwerty'
 });
 
-//  iga kord kui server starditakse on uus hääletamise session
+//  Every time the server is started, a new row is inserted into TULEMUSED table
 let currentSessionId;
-
 function initializeNewSession() {
-  pool.query('INSERT INTO TULEMUSED (haaletanute_arv, h_alguse_aeg) VALUES (0, NOW())', (error, results, fields) => {
+  pool.query('INSERT INTO TULEMUSED (haaletanute_arv, h_alguse_aeg) VALUES (0, NOW())', (error, results) => {
     if (error) {
-      console.error('Error when inserting new session:', error);
+      console.error('Error db:', error);
       return;
     }
     currentSessionId = results.insertId;
-    console.log('New session started with session ID:', currentSessionId);
   });
 }
-
 initializeNewSession();
 
 // Connect to MySQL
 pool.getConnection((err, connection) => {
   if (err) {
-    console.error('MySQL connection error:', err);
+    console.error('Error MySQL:', err);
     return;
   }
-  console.log('Connected to MySQL database');
   connection.release()
 });
 
@@ -58,17 +53,14 @@ app.get('/', (req, res) => {
 // timer
 let votingAllowed = true;
 const votingPeriod = 50000;
-
 setTimeout(() => {
   votingAllowed = false;
-  console.log("Voting has ended.");
 }, votingPeriod);
 
 // Post identification
 app.post('/identification', (req, res) => {
   const { firstname, lastname } = req.body;
   const query = 'SELECT * FROM HAALETUS WHERE LOWER(eesnimi) = LOWER(?) AND LOWER(perenimi) = LOWER(?)';
-
   pool.query(query, [firstname, lastname], (err, results) => {
     if (err || results.length === 0) {
       // If an error occurs, show this page and stop further processing
@@ -78,13 +70,7 @@ app.post('/identification', (req, res) => {
       // Set userId in session
       req.session.userId = results[0].Haaletaja_id;
 
-      // If voting time has expired, redirect to summary page
-      if (!votingAllowed) {
-        return res.redirect('/summary.html');
-        return;
-      }
-
-      // Redirect to voting page if the user is found
+      // Redirect depending on the situation
       const voteCheckQuery = 'SELECT otsus FROM HAALETUS WHERE Haaletaja_id = ? AND Session_id = ?';
       pool.query(voteCheckQuery, [req.session.userId, currentSessionId], (error, voteResults) => {
         if (error) {
@@ -96,8 +82,13 @@ app.post('/identification', (req, res) => {
           // If a vote record exists for this session, redirect to confirmation page
           res.redirect('/confirmation.html');
         } else {
-          // No vote recorded for this session, redirect to voting page
+          // If a vote record doesn't exist for this session, redirect to voting page
           res.redirect('/vote.html');
+          // If voting time has expired, redirect to summary page
+          if (!votingAllowed) {
+            return res.redirect('/summary.html');
+            return;
+          }
         }
       });
     }
@@ -154,8 +145,8 @@ app.post('/vote', (req, res) => {
   const currentTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
 
   if (typeof currentSessionId === 'undefined') {
-    console.error('Session ID is not initialized');
-    return res.status(500).send('Internal Server Error: Session ID is not available.');
+    console.error('Session ID undefined');
+    return res.status(500).send('Session ID undefined');
   }
 
   const query = 'UPDATE HAALETUS SET otsus = ?, haaletuse_aeg = ?, Session_id = ? WHERE Haaletaja_id = ?';
@@ -205,9 +196,8 @@ function renderVotingPage(errorMessage) {
 </html>`;
 }
 
-// allows to retrieve for the individual vote result
+// allows to fetch the individual vote result
 app.get('/get-vote', (req, res) => {
-  // console.log("Current Session Data:", req.session);
   const sessionID = req.session.voteSessionId;
 
   if (!sessionID) {
@@ -218,36 +208,35 @@ app.get('/get-vote', (req, res) => {
   pool.query(query, [sessionID, req.session.userId], (error, results) => {
     if (error) {
       console.error('Database error:', error);
-      return res.status(500).send('Database query failed.');
+      return res.status(500).send('Andmebaasi päring ebaõnnestus, palun proovige uuesti');
     }
     if (results.length > 0) {
       res.json({ vote: results[0].otsus });
     } else {
-      console.log("No vote found in current session.");
-      res.status(404).send('No vote recorded');
+      res.status(404).send('Hääl pole salvestatu');
     }
   });
 });
 
-// retrieves the voter's name
+// allows to fetch the voter's name
 app.get('/get-username', (req, res) => {
   if (req.session && req.session.userId) {
     const userId = req.session.userId;
     const query = 'SELECT eesnimi, perenimi FROM HAALETUS WHERE Haaletaja_id = ?';
     pool.query(query, [userId], (error, results) => {
       if (error || results.length === 0) {
-        return res.status(404).send('User not found');
+        return res.status(404).send('Kasutajat ei leitud');
       }
       const user = results[0];
       const fullName = user.eesnimi + ' ' + user.perenimi;
       res.json({ name: fullName });
     });
   } else {
-    res.status(404).send('Session userId not found');
+    res.status(404).send('Session userId ei leitud');
   }
 });
 
-// timer
+// allows to fetch the time left
 let votingEndTime = new Date(Date.now() + votingPeriod);
 
 app.get('/timer', (req, res) => {
@@ -260,12 +249,12 @@ app.get('/timer', (req, res) => {
   }
 });
 
-// results
+// allows to fetch the results
 app.get('/results', (req, res) => {
   const query = 'SELECT poolt, vastu FROM TULEMUSED WHERE Session_id = ?';
   pool.query(query, [currentSessionId], (error, results) => {
     if (error) {
-      console.error('Failed to retrieve results:', error);
+      console.error('Error results:', error);
       res.status(500).send('Failed to retrieve voting results');
     } else {
       res.json(results[0]);
