@@ -238,6 +238,19 @@ app.get('/timer', (req, res) => {
   res.json({ timeLeft });
 });
 
+// results
+app.get('/results', (req, res) => {
+  const query = 'SELECT poolt, vastu FROM TULEMUSED WHERE Session_id = ?';
+  pool.query(query, [currentSessionId], (error, results) => {
+      if (error) {
+          console.error('Failed to retrieve results:', error);
+          res.status(500).send('Failed to retrieve voting results');
+      } else {
+          res.json(results[0]);
+      }
+  });
+});
+
 // start the server
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
