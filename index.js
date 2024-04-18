@@ -28,7 +28,7 @@ const pool = mysql.createPool({
 let currentSessionId;
 
 function initializeNewSession() {
-  pool.query('INSERT INTO TULEMUSED (haaletanute_arv) VALUES (0)', (error, results, fields) => {
+  pool.query('INSERT INTO TULEMUSED (haaletanute_arv, h_alguse_aeg) VALUES (0, NOW())', (error, results, fields) => {
     if (error) {
       console.error('Error when inserting new session:', error);
       return;
@@ -57,7 +57,7 @@ app.get('/', (req, res) => {
 
 // timer
 let votingAllowed = true;
-const votingPeriod = 300000;
+const votingPeriod = 50000;
 
 setTimeout(() => {
   votingAllowed = false;
@@ -227,7 +227,7 @@ app.get('/get-username', (req, res) => {
 });
 
 // timer
-let votingEndTime = new Date(Date.now() + 300000);
+let votingEndTime = new Date(Date.now() + votingPeriod);
 
 app.get('/timer', (req, res) => {
   let currentTime = new Date();
