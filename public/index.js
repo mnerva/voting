@@ -64,7 +64,6 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('results').textContent = `Poolt: ${data.poolt} Vastu: ${data.vastu}`;
         })
         .catch(error => console.error('Error fetching results:', error));
-
 });
 
 // Poolt/vastu nuppude funktsionaalsus

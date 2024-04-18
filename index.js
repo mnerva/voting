@@ -73,12 +73,33 @@ app.post('/identification', (req, res) => {
     if (err || results.length === 0) {
       // If an error occurs, show this page and stop further processing
       return res.send(renderIdentificationPage('Isiku tuvastamine ebaõnnestus, palun proovige uuesti'));
+      return;
     } else {
       // Set userId in session
       req.session.userId = results[0].Haaletaja_id;
 
+      // If voting time has expired, redirect to summary page
+      if (!votingAllowed) {
+        return res.redirect('/summary.html');
+        return;
+      }
+
       // Redirect to voting page if the user is found
-      res.redirect('/vote.html');
+      const voteCheckQuery = 'SELECT otsus FROM HAALETUS WHERE Haaletaja_id = ? AND Session_id = ?';
+      pool.query(voteCheckQuery, [req.session.userId, currentSessionId], (error, voteResults) => {
+        if (error) {
+          console.error('Error checking user vote:', error);
+          return res.send(renderIdentificationPage('Andmebaasi päring ebaõnnestus, palun proovige uuesti'));
+          return;
+        }
+        if (voteResults.length > 0) {
+          // If a vote record exists for this session, redirect to confirmation page
+          res.redirect('/confirmation.html');
+        } else {
+          // No vote recorded for this session, redirect to voting page
+          res.redirect('/vote.html');
+        }
+      });
     }
   });
 });
@@ -232,22 +253,23 @@ let votingEndTime = new Date(Date.now() + votingPeriod);
 app.get('/timer', (req, res) => {
   let currentTime = new Date();
   let timeLeft = votingEndTime - currentTime;
-  if (timeLeft < 0) {
-    timeLeft = 0;
+  if (timeLeft <= 0) {
+    res.json({ timeLeft: 0, votingEnded: true });
+  } else {
+    res.json({ timeLeft, votingEnded: false });
   }
-  res.json({ timeLeft });
 });
 
 // results
 app.get('/results', (req, res) => {
   const query = 'SELECT poolt, vastu FROM TULEMUSED WHERE Session_id = ?';
   pool.query(query, [currentSessionId], (error, results) => {
-      if (error) {
-          console.error('Failed to retrieve results:', error);
-          res.status(500).send('Failed to retrieve voting results');
-      } else {
-          res.json(results[0]);
-      }
+    if (error) {
+      console.error('Failed to retrieve results:', error);
+      res.status(500).send('Failed to retrieve voting results');
+    } else {
+      res.json(results[0]);
+    }
   });
 });
 
