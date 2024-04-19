@@ -17,11 +17,6 @@ app.use(session({
 
 app.use('/', voteRoutes);
 
-/*
-// allows to fetch the time left
-let votingEndTime = new Date(Date.now() + votingPeriod);
-*/
-
 module.exports = app;
 
 // start the server

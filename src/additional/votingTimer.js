@@ -1,5 +1,5 @@
 let votingAllowed = true;
-const votingPeriod = 50000;
+const votingPeriod = 300000;
 const votingEndTime = new Date(Date.now() + votingPeriod);
 
 setTimeout(() => {

@@ -8,7 +8,7 @@ const {
   getUsername,
   getResults,
   getTimer
-} = require('../controllers/voteControllers'); // Ensure this path is correct
+} = require('../controllers/voteControllers');
 
 router.get('/', getHomePage);
 router.post('/identification', postIdentification);
