@@ -11,5 +11,4 @@ exports.initializeNewSession = () => {
   };
   
   exports.checkVoteStatus = (userId, sessionId) => {
-    // Logic to check voting status
   };

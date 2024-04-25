@@ -66,7 +66,7 @@ exports.postVote = (req, res) => {
   const userId = req.session.userId;
   const currentTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
 
-  // Make sure the currentSessionId is defined (ensure it's set correctly where your session is managed)
+  // Check whether the currentSessionId is defined
   if (typeof currentSessionId === 'undefined') {
       console.error('Session ID undefined');
       return res.status(500).send('Session ID undefined');
